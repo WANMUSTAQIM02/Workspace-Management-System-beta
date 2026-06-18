@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Management</title>
+    <link rel="stylesheet" href="style.css?v=3.1.4">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght=300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-popup { animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        .fab-add-expense {
+            position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; border-radius: 50%;
+            background: var(--brand-red); color: #ffffff; border: none; box-shadow: 0 4px 16px rgba(255, 59, 48, 0.4);
+            font-size: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 999;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .fab-add-expense:hover { transform: scale(1.05); background: #d63025; }
+        .fab-add-expense:active { transform: scale(0.95); }
+
+        .in-card-summary {
+            display: flex; flex-wrap: wrap; gap: 16px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px; padding: 16px 24px; margin-bottom: 24px; align-items: center;
+        }
+        .summary-block { flex: 1; min-width: 110px; border-right: 1px solid rgba(255,255,255,0.05); }
+        .summary-block:last-child { border-right: none; }
+        .summary-label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-value { font-size: 15px; font-weight: 600; margin-top: 4px; }
+        
+        .text-green { color: #34c759 !important; }
+        .text-blue { color: #007aff !important; }
+        .text-red { color: #ff3b30 !important; }
+
+        @media screen and (max-width: 768px) {
+            .fab-add-expense { bottom: 24px; right: 24px; width: 56px; height: 56px; font-size: 22px; }
+            .summary-block { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px; }
+            .summary-block:last-child { border-bottom: none; padding-bottom: 0; }
+            .grand-total-block { text-align: left !important; margin-top: 8px; }
+        }
+    </style>
+</head>
+<body class="dark-theme">
+
+    <div id="page-loader" style="display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; background-color: var(--bg-main); z-index: 99999;">
+        <div style="text-align: center; color: var(--brand-blue);">
+            <i class="fas fa-circle-notch fa-spin fa-3x"></i>
+            <p style="margin-top: 15px; font-weight: 500;">Loading Ledger...</p>
+        </div>
+    </div>
+
+    <div id="main-ui" style="display: none;">
+        
+        <div id="toast-container" style="position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:10px;"></div>
+
+        <button onclick="window.toggleSidebar()" id="menu-trigger-btn" class="menu-hamburger-btn" aria-label="Open Menu"><i class="fas fa-bars"></i></button>
+
+        <aside id="sidebar-menu" class="app-sidebar">
+            <div class="sidebar-header">
+                <button onclick="window.toggleSidebar()" class="sidebar-close-btn"><i class="fas fa-times"></i></button>
+                <h2>Menu</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-item"><i class="fas fa-chart-pie"></i> Dashboard</a>
+                <a href="profile-settings.html" class="nav-item"><i class="fas fa-user-cog"></i> Profile Settings</a>
+                <a href="history-reports.html" class="nav-item"><i class="fas fa-history"></i> History & Reports</a>
+                <a href="money-management.html" class="nav-item active"><i class="fas fa-wallet"></i> Money Management</a>
+                <a href="#" class="nav-item" onclick="event.preventDefault(); document.getElementById('about-modal').style.display='flex'; window.toggleSidebar();"><i class="fas fa-info-circle"></i> About App</a>
+            </nav>
+        </aside>
+
+        <div id="sidebar-overlay" class="sidebar-backdrop" onclick="window.toggleSidebar()"></div>
+
+        <div class="system-toolbar">
+            <span id="current-time" class="time-display">00:00</span>
+            <button onclick="window.logKeluarSistem()" id="logout-btn" class="btn-text-danger" style="display: none;">Log Out</button>
+            <button onclick="window.toggleTheme()" class="theme-btn"><i class="fas fa-moon" id="theme-icon"></i></button>
+        </div>
+
+        <button onclick="document.getElementById('expense-modal').style.display='flex'" class="fab-add-expense" title="Log Expense"><i class="fas fa-minus"></i></button>
+
+        <div class="central-wrapper">
+            <main class="dashboard-layout" id="dashboard-container" style="padding-top: 20px;">
+                <section class="panel-card" style="padding: 24px 28px; margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <h2 style="font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Money Management</h2>
+                            <p style="font-size: 14px; margin-top: 4px; color: var(--text-muted);" id="budget-month-label">Loading financial tracking...</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <button onclick="document.getElementById('expense-modal').style.display='flex'" class="btn-action-primary" style="background: var(--brand-red); padding: 0 16px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; margin-top: 0; width: auto; height: 38px; border-radius: 8px;">
+                                <i class="fas fa-minus-circle"></i> Log Expense
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel-card list-summary-panel" style="width: 100%; padding: 28px;">
+                    <div class="card-title-area" style="margin-bottom: 20px;">
+                        <div class="icon-frame" style="background: rgba(255,59,48,0.1); color: var(--brand-red);"><i class="fas fa-receipt"></i></div>
+                        <div style="flex-grow: 1;">
+                            <h3 style="font-size: 18px; font-weight: 600;">Financial Breakdown Ledger</h3>
+                            <p style="margin-top: 4px;">Real-time tracking for income, utilities, commitments, and statutory deductions</p>
+                        </div>
+                    </div>
+                    
+                    <div class="in-card-summary" style="margin-bottom: 12px; background: rgba(0,122,255,0.05); border: 1px solid rgba(0,122,255,0.15);">
+                        <div class="summary-block">
+                            <div class="summary-label"><i class="fas fa-arrow-down" style="color: var(--brand-green); margin-right: 4px;"></i> Net Income</div>
+                            <div class="summary-value text-green" id="total-income-val" style="font-size: 18px;">RM 0.00</div>
+                        </div>
+                        <div class="summary-block">
+                            <div class="summary-label"><i class="fas fa-arrow-up" style="color: var(--brand-red); margin-right: 4px;"></i> Total Expenses</div>
+                            <div class="summary-value text-red" id="total-expenses-val" style="font-size: 18px;">RM 0.00</div>
+                        </div>
+                        <div class="summary-block grand-total-block" style="text-align: right; flex: 1.2;">
+                            <div class="summary-label" style="color: var(--brand-blue); font-size: 12px;"><i class="fas fa-wallet" style="margin-right: 4px;"></i> Net Pocket Balance</div>
+                            <div class="summary-value text-blue" id="net-balance-val" style="font-size: 24px; font-weight: 700; margin-top: 2px;">RM 0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="in-card-summary" style="padding: 12px 24px; background: rgba(0,0,0,0.2);">
+                        <div class="summary-block" style="flex: 0.5;">
+                            <div class="summary-label" style="display: flex; align-items: center; gap: 6px;"><i class="fas fa-lock" style="color: var(--text-muted);"></i> Statutory Deductions</div>
+                        </div>
+                        <div class="summary-block">
+                            <div class="summary-label">EPF (11%)</div>
+                            <div class="summary-value text-red" id="deduction-epf-val" style="font-size: 14px;">- RM 0.00</div>
+                        </div>
+                        <div class="summary-block">
+                            <div class="summary-label">SOCSO</div>
+                            <div class="summary-value text-red" id="deduction-socso-val" style="font-size: 14px;">- RM 0.00</div>
+                        </div>
+                        <div class="summary-block">
+                            <div class="summary-label">EIS (0.2%)</div>
+                            <div class="summary-value text-red" id="deduction-eis-val" style="font-size: 14px;">- RM 0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive-wrapper" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(0,0,0,0.2);">
+                        <table class="system-data-table visual-clean-table" style="width: 100%; text-align: left; border-collapse: collapse;">
+                            <thead style="position: sticky; top: 0; background: var(--bg-surface); backdrop-filter: blur(12px); z-index: 5; box-shadow: 0 1px 0 rgba(255,255,255,0.08);">
+                                <tr>
+                                    <th style="padding: 16px; font-weight: 600; color: var(--text-muted);">No</th>
+                                    <th style="padding: 16px; font-weight: 600; color: var(--text-muted);">Date</th>
+                                    <th style="padding: 16px; font-weight: 600; color: var(--text-muted);">Expense Description</th>
+                                    <th style="padding: 16px; font-weight: 600; color: var(--text-muted);">Category</th>
+                                    <th style="padding: 16px; font-weight: 600; color: var(--text-muted);">Amount</th>
+                                    <th style="padding: 16px; font-weight: 600; color: var(--text-muted); text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expense-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <div id="expense-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(8px); padding: 16px; box-sizing: border-box;">
+            <div class="panel-card animate-popup" style="width: 100%; max-width: 440px; padding: 32px; border: 1px solid rgba(255,255,255,0.1); position: relative; border-radius: 24px; box-shadow: 0 24px 48px rgba(0,0,0,0.5);">
+                <button onclick="document.getElementById('expense-modal').style.display='none'" style="position: absolute; top: 20px; right: 24px; background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer;"><i class="fas fa-times"></i></button>
+
+                <div class="card-title-area" style="margin-bottom: 24px;">
+                    <div class="icon-frame" style="background: rgba(255,59,48,0.15); color: var(--brand-red); width: 48px; height: 48px; border-radius: 12px; font-size: 18px;"><i class="fas fa-minus"></i></div>
+                    <div>
+                        <h3 style="font-size: 18px; font-weight: 700;">Log Monthly Expense</h3>
+                        <p style="margin-top: 4px;">Deduct your commitments from your wallet</p>
+                    </div>
+                </div>
+                
+                <form id="expense-input-form" onsubmit="window.tambahExpenseCloud(event)" class="card-body-stack" style="gap: 20px;">
+                    <div class="input-group-wrapper">
+                        <label for="exp-date">Date Paid</label>
+                        <input type="date" id="exp-date" required style="height: 48px; border-radius: 12px;">
+                    </div>
+                    <div class="input-group-wrapper">
+                        <label for="exp-reason">Description</label>
+                        <input type="text" id="exp-reason" placeholder="e.g., Bil Telefon, Servis Motor" required style="height: 48px; border-radius: 12px;">
+                    </div>
+                    <div class="input-group-wrapper">
+                        <label for="exp-category">Category</label>
+                        <div class="custom-select-element">
+                            <select id="exp-category" style="height: 48px; border-radius: 12px;">
+                                <option value="Utilities">Utilities (Internet, Water, Elect)</option>
+                                <option value="Vehicle/Motor">Vehicle & Maintenance</option>
+                                <option value="Commitments">Loans & Commitments</option>
+                                <option value="Grooming/Lifestyle">Grooming & Lifestyle</option>
+                                <option value="Others">Others / Miscellaneous</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group-wrapper">
+                        <label for="exp-amount">Amount (RM)</label>
+                        <input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0.01" required style="height: 48px; border-radius: 12px;">
+                    </div>
+                    <button type="submit" class="btn-action-primary" style="background: var(--brand-red); margin-top: 12px; height: 50px; border-radius: 12px; font-size: 15px;">Deduct from Wallet</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL ABOUT APP (SERAGAM PROFILE) -->
+        <div id="about-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 10005; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+            <div class="panel-card animate-popup" style="width: 90%; max-width: 420px; padding: 28px; text-align: center; border: 1px solid rgba(255,255,255,0.08);">
+                <div style="width: 64px; height: 64px; background: rgba(0,122,255,0.15); color: var(--brand-blue); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; font-size: 26px;"><i class="fas fa-terminal"></i></div>
+                <h3 style="font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px;">Workspace Pro</h3>
+                <div style="font-size: 12px; background: rgba(255,255,255,0.06); color: var(--text-muted); display: inline-block; padding: 4px 10px; border-radius: 20px; font-weight: 600; margin-bottom: 20px;">Version 2.0</div>
+                <p style="font-size: 14px; line-height: 1.6; color: var(--text-muted); margin-bottom: 24px; padding: 0 8px;">This automation utility is meticulously designed and developed by <strong style="color: var(--text-primary);">Wan Mustaqim</strong> to process complex real-time OT data metrics and Malaysian Employment Act structural formulas.</p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button onclick="window.open('https://your-donation-link.com', '_blank')" class="btn-action-primary" style="background: #34c759; color: #ffffff; width: 100%; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(52,199,89,0.2);"><i class="fas fa-heart"></i> Support & Idea Donation</button>
+                    <button onclick="document.getElementById('about-modal').style.display='none'" class="btn-secondary-action" style="width: 100%; font-weight: 500; justify-content: center;">Dismiss</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module" src="money-script.js?v=3.1.4"></script>
+</body>
+</html>

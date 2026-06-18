@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Settings - Workspace Pro</title>
+    <link rel="stylesheet" href="style.css?v=3.1.4">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght=300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Animasi fade-in lancar untuk Modal Pop-up */
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-popup {
+            animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="dark-theme">
+
+    <div id="page-loader" style="display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; background-color: var(--bg-body, #1c1c1e); z-index: 99999;">
+        <div style="text-align: center; color: var(--brand-blue, #007aff);">
+            <i class="fas fa-circle-notch fa-spin fa-3x"></i>
+            <p style="margin-top: 15px; font-weight: 500; letter-spacing: -0.2px;">Please wait...</p>
+        </div>
+    </div>
+
+    <div id="main-ui" style="display: none;">
+        
+        <div id="toast-container"></div>
+
+        <button onclick="window.toggleSidebar()" id="menu-trigger-btn" class="menu-hamburger-btn" aria-label="Open Menu">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <aside id="sidebar-menu" class="app-sidebar">
+            <div class="sidebar-header">
+                <button onclick="window.toggleSidebar()" class="sidebar-close-btn" aria-label="Close Menu">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h2>Menu</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-item"><i class="fas fa-chart-pie"></i> Dashboard</a>
+                <a href="profile-settings.html" class="nav-item active"><i class="fas fa-user-cog"></i> Profile Settings</a>
+                <a href="history-reports.html" class="nav-item"><i class="fas fa-history"></i> History & Reports</a>
+                <a href="money-management.html" class="nav-item"><i class="fas fa-wallet"></i> Money Management</a>
+                <a href="#" class="nav-item" onclick="event.preventDefault(); document.getElementById('about-modal').style.display='flex'; window.toggleSidebar();">
+                    <i class="fas fa-info-circle"></i> About App
+                </a>
+            </nav>
+        </aside>
+
+        <div id="sidebar-overlay" class="sidebar-backdrop" onclick="window.toggleSidebar()"></div>
+
+        <div class="system-toolbar">
+            <span id="current-time" class="time-display">00:00</span>
+            <button onclick="window.logKeluarSistem()" id="logout-btn" class="btn-text-danger">Log Out</button>
+            <button onclick="window.toggleTheme()" class="theme-btn" aria-label="Toggle Theme">
+                <i class="fas fa-moon" id="theme-icon"></i>
+            </button>
+        </div>
+
+        <div class="central-wrapper" id="profile-container" style="max-width: 800px; margin-top: 20px;">
+            <div style="margin-bottom: 20px;">
+                <a href="index.html" style="color: var(--brand-blue); text-decoration: none; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+
+            <main class="dashboard-layout">
+                <section class="panel-card">
+                    <div class="card-title-area" style="margin-bottom: 28px;">
+                        <div class="icon-frame accent-blue"><i class="fas fa-user-sliders"></i></div>
+                        <div>
+                            <h3>Profile & Salary Settings</h3>
+                            <p>Configure your employee credentials and salary metrics synced with cloud storage</p>
+                        </div>
+                    </div>
+
+                    <form id="profile-settings-form" onsubmit="window.kemaskiniProfilCloud(event)" class="card-body-stack">
+                        
+                        <div class="profile-inputs-grid">
+                            <div class="input-group-wrapper">
+                                <label for="profile-name">Full Employee Name</label>
+                                <input type="text" id="profile-name" placeholder="Enter your full name" required>
+                            </div>
+                            <div class="input-group-wrapper">
+                                <label for="profile-nickname">Display Nick Name</label>
+                                <input type="text" id="profile-nickname" placeholder="Name shown on Dashboard greeting" required>
+                            </div>
+                        </div>
+
+                        <div class="profile-inputs-grid" style="margin-top: 4px;">
+                            <div class="input-group-wrapper">
+                                <label for="profile-salary">Basic Salary (RM)</label>
+                                <input type="number" id="profile-salary" placeholder="e.g., 2500" required>
+                            </div>
+                            <div class="input-group-wrapper">
+                                <label for="profile-staff-id">Staff ID / Identification Code</label>
+                                <input type="text" id="profile-staff-id" placeholder="e.g., WTS-092">
+                            </div>
+                        </div>
+
+                        <div class="panel-divider" style="margin: 10px 0;"></div>
+
+                        <div class="input-group-wrapper">
+                            <label>Bound Account Email Address (Firebase Auth Key)</label>
+                            <input type="text" id="profile-email-display" style="opacity: 0.6; cursor: not-allowed;" readonly>
+                        </div>
+
+                        <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+                            <button type="submit" class="btn-action-primary" style="width: auto; padding: 0 32px;">
+                                <i class="fas fa-save" style="margin-right: 8px;"></i> Save Modifications
+                            </button>
+                        </div>
+                    </form>
+                </section>
+                
+                <section class="panel-card" style="padding: 24px; background-color: rgba(0,0,0,0.12);">
+                    <div style="display: flex; gap: 14px; align-items: flex-start;">
+                        <i class="fas fa-calculator" style="color: var(--brand-green); font-size: 18px; margin-top: 2px;"></i>
+                        <div style="font-size: 13px; line-height: 1.6; color: var(--text-muted);">
+                            <strong style="color: var(--text-primary); display: block; margin-bottom: 4px;">System Calculation Formula Note:</strong>
+                            Your hourly rate is automatically processed using the standard Malaysian Employment Act structure:<br>
+                            <code style="background: var(--bg-input); padding: 2px 6px; border-radius: 4px; font-variant-numeric: tabular-nums; color: var(--brand-blue);">Basic Salary ÷ 26 Days ÷ 8 Hours</code>. 
+                            Modifying the parameters here will instantly update the calculation rules inside your main interface.
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <div id="about-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 10005; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+            <div class="panel-card animate-popup" style="width: 90%; max-width: 420px; padding: 28px; text-align: center; border: 1px solid rgba(255,255,255,0.08);">
+                <div style="width: 64px; height: 64px; background: rgba(0,122,255,0.15); color: var(--brand-blue); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; font-size: 26px;">
+                    <i class="fas fa-terminal"></i>
+                </div>
+                
+                <h3 style="font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px;">Workspace Pro</h3>
+                <div style="font-size: 12px; background: rgba(255,255,255,0.06); color: var(--text-muted); display: inline-block; padding: 4px 10px; border-radius: 20px; font-weight: 600; margin-bottom: 20px;">
+                    Version 2.0
+                </div>
+                
+                <p style="font-size: 14px; line-height: 1.6; color: var(--text-muted); margin-bottom: 24px; padding: 0 8px;">
+                    This automation utility is meticulously designed and developed by <strong style="color: var(--text-primary);">Wan Mustaqim</strong> to process complex real-time OT data metrics and Malaysian Employment Act structural formulas.
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button onclick="window.open('https://your-donation-link.com', '_blank')" class="btn-action-primary" style="background: #34c759; color: #ffffff; width: 100%; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(52,199,89,0.2);">
+                        <i class="fas fa-heart"></i> Support & Idea Donation
+                    </button>
+                    
+                    <button onclick="document.getElementById('about-modal').style.display='none'" class="btn-secondary-action" style="width: 100%; font-weight: 500;">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div> <script type="module" src="profile-script.js?v=3.1.4"></script>
+</body>
+</html>
