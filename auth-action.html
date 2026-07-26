@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace Pro | Authentication</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="d-flex align-items-center justify-content-center" style="height: 100vh; overflow: hidden; background-color: #050505;">
+    
+    <canvas id="bg-canvas" style="position: absolute; top: 0; left: 0; z-index: -1;"></canvas>
+
+    <div class="container relative" style="z-index: 1;">
+        <div class="row justify-content-center gsap-element">
+            <div class="col-md-5 col-11">
+                <div class="glass-panel p-5 text-center shadow-lg" id="main-panel">
+                    
+                    <!-- DYNAMIC ICON & TITLE -->
+                    <div id="status-icon" class="mb-4"><i class="fas fa-circle-notch fa-spin text-primary" style="font-size: 3.5rem;"></i></div>
+                    <h3 id="status-title" class="fw-bold text-white mb-3">Processing Request...</h3>
+                    <p id="status-message" class="text-secondary mb-4">Please wait while we securely process your request.</p>
+
+                    <!-- FORM RESET PASSWORD (Tersembunyi secara default) -->
+                    <form id="reset-password-form" class="text-start d-none" onsubmit="window.sahkanPasswordBaru(event)">
+                        <div class="mb-4">
+                            <label class="form-label text-secondary small fw-bold">Enter New Password</label>
+                            <input type="password" id="new-password" class="form-control bg-dark text-white border-secondary" placeholder="Min 6 characters" required>
+                        </div>
+                        <button type="submit" id="save-btn" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">Save New Password</button>
+                    </form>
+
+                    <!-- BUTTON BACK TO LOGIN (Tersembunyi secara default) -->
+                    <button id="back-login-btn" class="btn btn-outline-primary w-100 py-2 fw-bold shadow-sm d-none" onclick="window.location.replace('login.html')">Proceed to Login</button>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    
+    <!-- SCRIPT LOGIK FIREBASE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAuth, applyActionCode, verifyPasswordResetCode, confirmPasswordReset } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+        const firebaseConfig = { 
+            apiKey: "AIzaSyAYQ9UKq6teDdfleoCfG_-kjiIf6Gj0DNc", 
+            authDomain: "ot-tracker-pro-64415.firebaseapp.com", 
+            projectId: "ot-tracker-pro-64415" 
+        };
+        
+        const app = initializeApp(firebaseConfig); 
+        const auth = getAuth(app);
+
+        // Ambil maklumat dari URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode'); // samada 'verifyEmail' atau 'resetPassword'
+        const actionCode = urlParams.get('oobCode'); // Kod rahsia Firebase
+
+        // Element UI
+        const iconEl = document.getElementById('status-icon');
+        const titleEl = document.getElementById('status-title');
+        const messageEl = document.getElementById('status-message');
+        const resetForm = document.getElementById('reset-password-form');
+        const loginBtn = document.getElementById('back-login-btn');
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            initPremiumUI(); // Background partikel
+
+            if (!mode || !actionCode) {
+                paparRalat("Invalid Link", "The link you clicked is invalid or has expired.");
+                return;
+            }
+
+            try {
+                if (mode === 'verifyEmail') {
+                    // 1. FUNGSI PENGESAHAN EMAIL
+                    await applyActionCode(auth, actionCode);
+                    
+                    iconEl.innerHTML = '<i class="fas fa-check-circle text-success" style="font-size: 3.5rem;"></i>';
+                    titleEl.innerText = "Email Verified!";
+                    messageEl.innerText = "Your email has been successfully verified. You can now login to your account.";
+                    loginBtn.classList.remove('d-none');
+                    
+                } else if (mode === 'resetPassword') {
+                    // 2. FUNGSI RESET PASSWORD (Langkah 1: Verify kod dulu)
+                    const email = await verifyPasswordResetCode(auth, actionCode);
+                    
+                    iconEl.innerHTML = '<i class="fas fa-unlock-alt text-primary" style="font-size: 3.5rem;"></i>';
+                    titleEl.innerText = "Reset Password";
+                    messageEl.innerHTML = `Set a new password for <br><strong class="text-white">${email}</strong>`;
+                    
+                    // Tunjuk borang letak password baru
+                    resetForm.classList.remove('d-none');
+                } else {
+                    paparRalat("Unknown Action", "We could not identify the requested action.");
+                }
+            } catch (error) {
+                console.error(error);
+                paparRalat("Action Failed", error.message);
+            }
+        });
+
+        // 3. FUNGSI RESET PASSWORD (Langkah 2: Save password baru)
+        window.sahkanPasswordBaru = async function(e) {
+            e.preventDefault();
+            const newPassword = document.getElementById('new-password').value;
+            const saveBtn = document.getElementById('save-btn');
+            
+            saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Saving...`;
+            saveBtn.disabled = true;
+
+            try {
+                await confirmPasswordReset(auth, actionCode, newPassword);
+                
+                resetForm.classList.add('d-none');
+                iconEl.innerHTML = '<i class="fas fa-check-circle text-success" style="font-size: 3.5rem;"></i>';
+                titleEl.innerText = "Password Updated!";
+                messageEl.innerText = "Your password has been successfully reset. You can now login with your new password.";
+                loginBtn.classList.remove('d-none');
+                
+            } catch (error) {
+                alert(`Error saving password: ${error.message}`);
+                saveBtn.innerHTML = `Save New Password`;
+                saveBtn.disabled = false;
+            }
+        };
+
+        function paparRalat(tajuk, mesej) {
+            iconEl.innerHTML = '<i class="fas fa-times-circle text-danger" style="font-size: 3.5rem;"></i>';
+            titleEl.innerText = tajuk;
+            messageEl.innerText = mesej;
+            loginBtn.classList.remove('d-none');
+            resetForm.classList.add('d-none');
+        }
+
+        // BACKGROUND ANIMATION
+        function initPremiumUI() {
+            const canvas = document.getElementById('bg-canvas');
+            if(canvas && typeof THREE !== 'undefined') {
+                const scene = new THREE.Scene(); 
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true }); 
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                const geom = new THREE.BufferGeometry(); 
+                const posArray = new Float32Array(500 * 3);
+                for(let i=0; i<500*3; i++) posArray[i] = (Math.random() - 0.5) * 10;
+                geom.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                
+                const mat = new THREE.PointsMaterial({ size: 0.005, color: 0x0d6efd }); 
+                const mesh = new THREE.Points(geom, mat); 
+                scene.add(mesh); 
+                camera.position.z = 3;
+                
+                function animate() { 
+                    requestAnimationFrame(animate); 
+                    mesh.rotation.y += 0.001; 
+                    renderer.render(scene, camera); 
+                } 
+                animate();
+            }
+            if (typeof gsap !== 'undefined') {
+                gsap.to(".gsap-element", { y: 0, opacity: 1, duration: 0.8, stagger: 0.15, ease: "power3.out" });
+            }
+        }
+    </script>
+</body>
+</html>

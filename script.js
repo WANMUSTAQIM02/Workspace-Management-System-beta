@@ -1,445 +1,468 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Konfigurasi Pangkalan Data Firebase
-const firebaseConfig = {
+const firebaseConfig = { 
     apiKey: "AIzaSyAYQ9UKq6teDdfleoCfG_-kjiIf6Gj0DNc", 
-    authDomain: "ot-tracker-pro-64415.firebaseapp.com",
-    projectId: "ot-tracker-pro-64415",
-    storageBucket: "ot-tracker-pro-64415.firebasestorage.app",
-    messagingSenderId: "941888808954",
-    appId: "1:941888808954:web:e40f19a0cec8a2f4272643"
+    authDomain: "ot-tracker-pro-64415.firebaseapp.com", 
+    projectId: "ot-tracker-pro-64415" 
 };
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const app = initializeApp(firebaseConfig); 
+const auth = getAuth(app); 
 const db = getFirestore(app);
 
 let currentUser = null;
-let localOTDraft = []; 
-let globalBasicSalary = 2500; // Nilai fallback
-let isRegisterMode = false;   // Status mod login/register
+let basicSalary = 0;
+let draftOTList = [];
 
-/* =========================================================================
-   1. PENGESAHAN KESELAMATAN & PROFILE DATA SYNC (ANTI-SPAM RELOAD)
-   ========================================================================= */
+// =========================================================================
+// CSS TAMBAHAN UNTUK MOBILE (HILANGKAN SCROLL & JADIKAN KAD)
+// =========================================================================
+const mobileStyle = document.createElement('style');
+mobileStyle.innerHTML = `
+@media (max-width: 768px) {
+    .table-responsive { overflow-x: hidden !important; }
+    .table-glass thead { display: none !important; }
+    .table-glass tbody { border: none !important; }
+    .table-glass tr.d-md-none td { display: block; width: 100%; border: none !important; padding: 0 !important; }
+    .table-glass tr.empty-state-row td { display: block; width: 100%; border: none !important; text-align: center; }
+}
+`;
+document.head.appendChild(mobileStyle);
+
+// =========================================================================
+// PREMIUM ENGLISH TOAST NOTIFICATION
+// =========================================================================
+function showPremiumToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-warning');
+    const icon = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle');
+    
+    toast.className = `p-3 rounded-3 text-white shadow-lg d-flex align-items-center gap-3 animate-popup ${bgColor} bg-opacity-90`;
+    toast.style.backdropFilter = "blur(12px)";
+    toast.style.border = "1px solid rgba(255,255,255,0.2)";
+    toast.style.minWidth = "250px";
+    
+    toast.innerHTML = `<i class="fas ${icon} fs-4"></i><div class="fw-bold">${message}</div>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => { 
+        toast.style.opacity = '0'; 
+        toast.style.transform = 'translateX(120%)'; 
+        toast.style.transition = 'all 0.4s ease'; 
+        setTimeout(() => toast.remove(), 400); 
+    }, 3000);
+}
+
+// =========================================================================
+// AUTHENTICATION LOGIC
+// =========================================================================
 onAuthStateChanged(auth, async (user) => {
-    const pageLoader = document.getElementById('page-loader');
-    const mainUi = document.getElementById('main-ui');
-    const namaHalamanSemasa = window.location.pathname.split("/").pop();
-
     if (user) {
         currentUser = user;
-        
-        // Jika user dah login tapi cuba gatal buka page login, tolak ke dashboard
-        if (namaHalamanSemasa === "login.html") {
-            window.location.href = "index.html";
-            return;
-        }
-        
         try {
-            const docRef = doc(db, "users_ot", user.uid);
-            const docSnap = await getDoc(docRef);
+            const userDocRef = doc(db, "users_ot", user.uid);
+            const userDocSnap = await getDoc(userDocRef);
             
-            if (docSnap.exists()) {
-                const cloudData = docSnap.data();
-                const namaPanggilan = cloudData.nickName || cloudData.employeeName || "User";
-                globalBasicSalary = parseFloat(cloudData.basicSalaryProfile) || 2500;
-
-                if (document.getElementById('dashboard-greeting')) {
-                    document.getElementById('dashboard-greeting').innerText = `Welcome back, ${namaPanggilan}`;
-                }
-                kemaskiniKadarGajiUI(globalBasicSalary);
-            } else {
-                if (document.getElementById('dashboard-greeting')) {
-                    document.getElementById('dashboard-greeting').innerText = `Welcome back, User`;
-                }
-                kemaskiniKadarGajiUI(globalBasicSalary);
+            if (userDocSnap.exists()) {
+                const data = userDocSnap.data();
+                basicSalary = parseFloat(data.basicSalaryProfile) || 0;
+                const hourlyRate = (basicSalary / 26 / 8).toFixed(2);
+                
+                const greetingEl = document.getElementById('dashboard-greeting');
+                const salaryEl = document.getElementById('salary-indicator');
+                
+                let dName = data.nicknameProfile || data.nickName || 'User';
+                if(greetingEl) greetingEl.innerText = `Welcome back, ${dName}!`;
+                if(salaryEl) salaryEl.innerText = `Hourly Rate: RM ${hourlyRate}/hour`;
             }
         } catch (error) {
-            console.error("Ralat ketika memproses profil:", error);
-            kemaskiniKadarGajiUI(globalBasicSalary);
+            console.error("Error fetching user data:", error);
         }
-
-        // Paparkan antaramuka utama serentak selepas data dimuatkan
-        if (pageLoader) pageLoader.style.display = 'none';
-        if (mainUi) mainUi.style.display = 'block';
-
-        if (document.getElementById('logout-btn')) document.getElementById('logout-btn').style.display = 'inline-block';
-        if (document.getElementById('menu-trigger-btn')) document.getElementById('menu-trigger-btn').style.display = 'flex';
-
     } else {
-        currentUser = null;
-        
-        // JIKA TIADA USER: Hanya tendang keluar ke login.html kalau dia berada di index.html
-        if (namaHalamanSemasa !== "login.html") {
-            window.location.href = "login.html";
-        } else {
-            // Jika memang dah berada di login.html, matikan spinner loader
-            if (pageLoader) pageLoader.style.display = 'none';
-            if (mainUi) mainUi.style.display = 'block';
-            console.log("Sesi kosong statik. Halaman login sedia menerima input.");
-        }
+        window.location.replace("login.html");
     }
 });
 
-/* =========================================================================
-   2. FUNGSI AUTENTIKASI UTAMA (LOG IN / REGISTER ENGINE)
-   ========================================================================= */
-window.kendalikanAutentikasi = async function(event) {
-    if (event) event.preventDefault();
+// =========================================================================
+// DRAFT MANAGEMENT LOGIC
+// =========================================================================
+window.tambahKeSenaraiTempatan = function(e, source) {
+    e.preventDefault();
     
-    const email = document.getElementById('auth-email').value.trim();
-    const password = document.getElementById('auth-password').value;
-    const submitBtn = document.getElementById('auth-submit-btn');
+    const dateInput = document.getElementById(`${source}-date`).value;
+    const reasonInput = document.getElementById(`${source}-reason`).value.trim();
+    const rateInput = parseFloat(document.getElementById(`${source}-rate`).value);
+    const hoursInput = parseFloat(document.getElementById(`${source}-hours`).value);
 
-    if (!email || !password) {
-        tampilkanNotifikasi("Sila isi emel dan kata laluan dengan lengkap.", "error");
-        return;
-    }
+    draftOTList.push({ 
+        otDate: dateInput, 
+        taskDesc: reasonInput, 
+        rateFactor: rateInput, 
+        hoursCount: hoursInput 
+    });
 
-    submitBtn.disabled = true;
-    submitBtn.innerText = isRegisterMode ? "Registering Account..." : "Logging In...";
-
-    try {
-        if (isRegisterMode) {
-            // Proses Pendaftaran Baru
-            await createUserWithEmailAndPassword(auth, email, password);
-            tampilkanNotifikasi("Pendaftaran akaun baru berjaya!", "success");
-        } else {
-            // Proses Log Masuk Biasa
-            await signInWithEmailAndPassword(auth, email, password);
-            tampilkanNotifikasi("Log masuk berjaya!", "success");
-        }
-        // Pengalihan ke index.html diuruskan automatik oleh onAuthStateChanged di atas
-    } catch (error) {
-        console.error("Auth process failed:", error);
-        let mesejRalat = "Ralat: " + error.message;
-        
-        if (error.code === "auth/wrong-password" || error.code === "auth/user-not-found" || error.code === "auth/invalid-credential") {
-            mesejRalat = "Emel atau kata laluan salah.";
-        } else if (error.code === "auth/email-already-in-use") {
-            mesejRalat = "Emel ini telah pun didaftarkan sebelum ini.";
-        } else if (error.code === "auth/weak-password") {
-            mesejRalat = "Kata laluan mestilah sekurang-kurangnya 6 aksara.";
-        }
-        
-        tampilkanNotifikasi(mesejRalat, "error");
-        submitBtn.disabled = false;
-        submitBtn.innerText = isRegisterMode ? "Register Now" : "Log In";
-    }
-};
-
-// Tukar paparan kad antara Login & Register Mod
-window.toggleAuthMode = function() {
-    isRegisterMode = !isRegisterMode;
-    const title = document.querySelector('.auth-header h2');
-    const desc = document.querySelector('.auth-header p');
-    const submitBtn = document.getElementById('auth-submit-btn');
-    const toggleText = document.getElementById('auth-toggle-text');
-
-    if (!submitBtn || !toggleText) return;
-
-    if (isRegisterMode) {
-        if (title) title.innerText = "Create Account";
-        if (desc) desc.innerText = "Sign up to start tracking your workspace productivity.";
-        submitBtn.innerText = "Register Now";
-        toggleText.innerText = "Already have an account? Log In";
-    } else {
-        if (title) title.innerText = "Welcome";
-        if (desc) desc.innerText = "Please log in to access the workspace management system.";
-        submitBtn.innerText = "Log In";
-        toggleText.innerText = "Don't have an account? Register Now";
-    }
-};
-
-/* =========================================================================
-   3. LOGIK KIRAAN FORMULA (AKTA KERJA MALAYSIA)
-   ========================================================================= */
-function kemaskiniKadarGajiUI(gajiPokok) {
-    const kadarSejam = (gajiPokok / 26) / 8;
-    const indicatorEl = document.getElementById('salary-indicator');
-    if (indicatorEl) {
-        indicatorEl.innerText = `Hourly Rate: RM ${kadarSejam.toFixed(2)}/hour`;
-    }
-}
-
-/* =========================================================================
-   4. OPERASI BORANG & SENARAI DRAF AKTIF (DENGAN AUTO-SPLIT PUBLIC HOLIDAY)
-   ========================================================================= */
-window.tambahKeSenaraiTempatan = function(event) {
-    if (event) event.preventDefault();
-
-    const tarikhKerja = document.getElementById('ot-date').value;
-    const tugasan = document.getElementById('ot-reason').value;
-    const gandaanRate = parseFloat(document.getElementById('ot-rate').value);
-    const jumlahJam = parseFloat(document.getElementById('ot-hours').value);
-
-    if (!tarikhKerja || !tugasan || isNaN(gandaanRate) || isNaN(jumlahJam)) {
-        tampilkanNotifikasi("Sila pastikan seluruh borang diisi dengan lengkap.", "error");
-        return;
-    }
-
-    const kadarAsalSejam = (globalBasicSalary / 26) / 8;
-
-    // ⚡ LOGIK AUTO-SPLIT CUTI UMUM (PUBLIC HOLIDAY)
-    if (gandaanRate === 3.0) {
-        if (jumlahJam > 8) {
-            // Entri Pertama: 8 Jam pertama pada kadar 2.0x
-            localOTDraft.push({
-                id: Date.now(),
-                tarikhKerja,
-                tugasan: `${tugasan} (PH - 8 Jam Pertama)`,
-                gandaanRate: 2.0,
-                jumlahJam: 8,
-                bayaranHasil: 8 * kadarAsalSejam * 2.0
-            });
-
-            // Entri Kedua: Lebihan jam pada kadar 3.0x
-            const lebihanJam = jumlahJam - 8;
-            localOTDraft.push({
-                id: Date.now() + 1, // Tambah 1 ms supaya ID unik
-                tarikhKerja,
-                tugasan: `${tugasan} (PH - Lebihan Jam OT)`,
-                gandaanRate: 3.0,
-                jumlahJam: lebihanJam,
-                bayaranHasil: lebihanJam * kadarAsalSejam * 3.0
-            });
-        } else {
-            // Jika jam bekerja pada PH kurang atau sama dengan 8 jam (Hanya 2.0x)
-            localOTDraft.push({
-                id: Date.now(),
-                tarikhKerja,
-                tugasan: `${tugasan} (PH - Waktu Normal)`,
-                gandaanRate: 2.0,
-                jumlahJam: jumlahJam,
-                bayaranHasil: jumlahJam * kadarAsalSejam * 2.0
-            });
-        }
-    } else {
-        // ⚡ LOGIK BIASA (Untuk rate 1.5x dan 2.0x Rest Day)
-        localOTDraft.push({
-            id: Date.now(),
-            tarikhKerja,
-            tugasan,
-            gandaanRate,
-            jumlahJam,
-            bayaranHasil: jumlahJam * kadarAsalSejam * gandaanRate
-        });
-    }
-
-    document.getElementById('ot-input-form').reset();
-    
-    document.getElementById('ot-hours').value = "10.5";
+    e.target.reset();
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('ot-date').value = today;
-
-    binaSemulaJadualDraf();
-    tampilkanNotifikasi("Entri OT berjaya direkodkan.", "success");
-
-    if (document.getElementById('ot-modal')) {
-        document.getElementById('ot-modal').style.display = 'none';
+    document.getElementById(`${source}-date`).value = today;
+    
+    if(source === 'mob') {
+        const modalEl = document.getElementById('ot-modal');
+        if(modalEl) {
+            const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modalInstance.hide();
+        }
     }
+    
+    renderDraftTable();
+    showPremiumToast("Task added to draft successfully!", "success");
 };
 
-window.padamDrafItem = function(idItem) {
-    localOTDraft = localOTDraft.filter(item => item.id !== idItem);
-    binaSemulaJadualDraf();
-    tampilkanNotifikasi("Item draf telah dibuang.", "info");
-};
+// =========================================================================
+// RENDER JADUAL (GABUNGAN DESKTOP TABLE & MOBILE CARD)
+// =========================================================================
+function renderDraftTable() {
+    const tbody = document.getElementById('ot-table-body');
+    if (!tbody) return;
 
-function binaSemulaJadualDraf() {
-    const tBody = document.getElementById('ot-table-body');
-    if (!tBody) return;
+    if (draftOTList.length === 0) {
+        tbody.innerHTML = `<tr class="empty-state-row"><td colspan="7" class="text-center text-secondary py-4">No drafts added yet.</td></tr>`;
+        updateBreakdown();
+        return;
+    }
 
-    tBody.innerHTML = "";
+    tbody.innerHTML = "";
+    let hourlyRate = basicSalary > 0 ? (basicSalary / 26 / 8) : 0;
 
-    let totalJam15 = 0;
-    let totalJam20 = 0;
-    let totalJam30 = 0;
-    let grandTotalKiraan = 0;
+    draftOTList.forEach((item, index) => {
+        let r = item.rateFactor;
+        let h = item.hoursCount;
+        let totalPay = 0;
+        let summaryRateText = `${r.toFixed(1)}x`;
 
-    const kadarAsalSejam = (globalBasicSalary / 26) / 8;
+        // Kiraan Gaji
+        if (r === 2.0) {
+            let jam1 = Math.min(h, 8);
+            let jam2 = Math.max(0, h - 8);
+            totalPay = (jam1 * 1.5 * hourlyRate) + (jam2 * 2.0 * hourlyRate);
+            if (jam2 > 0) summaryRateText = `Mixed`;
+        } else if (r === 3.0) {
+            let jam1 = Math.min(h, 8);
+            let jam2 = Math.max(0, h - 8);
+            totalPay = (jam1 * 2.0 * hourlyRate) + (jam2 * 3.0 * hourlyRate);
+            if (jam2 > 0) summaryRateText = `Mixed`;
+        } else {
+            totalPay = h * 1.5 * hourlyRate;
+        }
 
-    localOTDraft.forEach((item, indeks) => {
-        if (item.gandaanRate === 1.5) totalJam15 += item.jumlahJam;
-        if (item.gandaanRate === 2.0) totalJam20 += item.jumlahJam;
-        if (item.gandaanRate === 3.0) totalJam30 += item.jumlahJam;
-        
-        grandTotalKiraan += item.bayaranHasil;
+        tbody.innerHTML += `
+            <!-- [1] DESKTOP VIEW (Hanya keluar kat PC/Laptop - d-none d-md-table-row) -->
+            <tr class="align-middle d-none d-md-table-row" style="cursor: pointer;" onclick="window.bukaDrawerDetails(${index})" title="Click to view detailed receipt">
+                <td>${index + 1}</td>
+                <td><span class="badge bg-secondary bg-opacity-50 px-2 py-1">${item.otDate}</span></td>
+                <td class="fw-semibold text-white">
+                    ${item.taskDesc} 
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-2 font-monospace" style="font-size: 0.7rem;">
+                        <i class="fas fa-search-plus me-1"></i> Details
+                    </span>
+                </td>
+                <td><span class="text-info">${summaryRateText}</span></td>
+                <td>${h.toFixed(1)}h</td>
+                <td class="text-success fw-bold">RM ${totalPay.toFixed(2)}</td>
+                <td class="text-end" onclick="event.stopPropagation()">
+                    <button onclick="window.padamDraft(${index})" class="btn btn-sm btn-outline-danger border-0"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
 
-        const barisHtml = `
-            <tr>
-                <td>${indeks + 1}</td>
-                <td style="white-space: nowrap;">${item.tarikhKerja}</td>
-                <td>${item.tugasan}</td>
-                <td><span class="badge-rate">${item.gandaanRate.toFixed(1)}x</span></td>
-                <td>${item.jumlahJam.toFixed(1)} hrs</td>
-                <td style="font-weight: 600; color: #34c759;">RM ${item.bayaranHasil.toFixed(2)}</td>
-                <td style="text-align: right;">
-                    <button onclick="window.padamDrafItem(${item.id})" class="btn-delete-row" aria-label="Padam" style="background: none; border: none; color: #ff3b30; cursor: pointer;">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
+            <!-- [2] MOBILE VIEW CARD (Hanya keluar kat Phone - d-md-none) -->
+            <tr class="d-md-none bg-transparent" style="cursor: pointer;" onclick="window.bukaDrawerDetails(${index})">
+                <td colspan="7" class="p-0 border-0">
+                    <div class="glass-panel p-3 mb-3 position-relative" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: rgba(20,20,20,0.6);">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="badge bg-secondary bg-opacity-50 text-white mb-2 px-2 py-1">${item.otDate}</span>
+                                <h6 class="fw-bold text-white mb-0" style="line-height: 1.4;">${item.taskDesc}</h6>
+                            </div>
+                            <button onclick="event.stopPropagation(); window.padamDraft(${index})" class="btn btn-sm text-danger p-2 border-0 shadow-none">
+                                <i class="fas fa-trash fs-5"></i>
+                            </button>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-end mt-3 border-top border-secondary border-opacity-25 pt-3">
+                            <div>
+                                <div class="text-secondary small mb-1">Rate: <span class="text-info fw-bold">${summaryRateText}</span></div>
+                                <div class="text-secondary small">Hours: <span class="text-white fw-bold">${h.toFixed(1)}h</span></div>
+                            </div>
+                            <div class="text-end">
+                                <div class="text-success fw-bold fs-4 mb-1">RM ${totalPay.toFixed(2)}</div>
+                                <div class="text-primary mt-1 fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                                    <i class="fas fa-hand-pointer me-1"></i> Tap for details
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </td>
             </tr>
         `;
-        tBody.insertAdjacentHTML('beforeend', barisHtml);
     });
-
-    if(document.getElementById('breakdown-1-5')) document.getElementById('breakdown-1-5').innerText = `${totalJam15.toFixed(1)} hours (RM ${(totalJam15 * kadarAsalSejam * 1.5).toFixed(2)})`;
-    if(document.getElementById('breakdown-2-0')) document.getElementById('breakdown-2-0').innerText = `${totalJam20.toFixed(1)} hours (RM ${(totalJam20 * kadarAsalSejam * 2.0).toFixed(2)})`;
-    if(document.getElementById('breakdown-3-0')) document.getElementById('breakdown-3-0').innerText = `${totalJam30.toFixed(1)} hours (RM ${(totalJam30 * kadarAsalSejam * 3.0).toFixed(2)})`;
-    if(document.getElementById('grand-total-val')) document.getElementById('grand-total-val').innerText = `RM ${grandTotalKiraan.toFixed(2)}`;
+    updateBreakdown();
 }
 
-/* =========================================================================
-   5. CLOUD SYNCHRONIZATION (SIMPAN KE ARRAY ACTIVERECORDS SEPERTI HISTORY.JS)
-   ========================================================================= */
+// =========================================================================
+// FUNGSI BUKA SIDE DRAWER (OFFCANVAS) & PENGIRAAN TERPERINCI
+// =========================================================================
+window.bukaDrawerDetails = function(index) {
+    const item = draftOTList[index];
+    const drawerBody = document.getElementById('drawer-content-body');
+    if (!drawerBody) return;
+
+    let hourlyRate = basicSalary > 0 ? (basicSalary / 26 / 8) : 0;
+    let r = item.rateFactor;
+    let h = item.hoursCount;
+    let breakdownHtml = "";
+    let totalPay = 0;
+
+    const makeRow = (title, hours, rateMultiplier, pay) => {
+        return `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="text-secondary small" style="width: 45%; line-height: 1.2;">${title}</div>
+                <div class="text-end" style="width: 55%;">
+                    <div class="text-secondary mb-1" style="font-size: 0.75rem;">${hours.toFixed(1)}h &times; RM ${(hourlyRate * rateMultiplier).toFixed(2)}</div>
+                    <div class="text-white fw-bold" style="font-size: 1rem;">RM ${pay.toFixed(2)}</div>
+                </div>
+            </div>
+        `;
+    };
+
+    if (r === 2.0) {
+        let jam1 = Math.min(h, 8);
+        let jam2 = Math.max(0, h - 8);
+        let p1 = jam1 * 1.5 * hourlyRate;
+        let p2 = jam2 * 2.0 * hourlyRate;
+        totalPay = p1 + p2;
+
+        breakdownHtml += makeRow("First 8.0 Hours (1.5x)", jam1, 1.5, p1);
+        if (jam2 > 0) breakdownHtml += makeRow("Remaining Hours (2.0x)", jam2, 2.0, p2);
+        
+    } else if (r === 3.0) {
+        let jam1 = Math.min(h, 8);
+        let jam2 = Math.max(0, h - 8);
+        let p1 = jam1 * 2.0 * hourlyRate;
+        let p2 = jam2 * 3.0 * hourlyRate;
+        totalPay = p1 + p2;
+
+        breakdownHtml += makeRow("First 8.0 Hours (2.0x)", jam1, 2.0, p1);
+        if (jam2 > 0) breakdownHtml += makeRow("<span style='color: var(--brand-purple);'>Remaining Hours (3.0x)</span>", jam2, 3.0, p2);
+        
+    } else {
+        totalPay = h * 1.5 * hourlyRate;
+        breakdownHtml += makeRow("Standard Overtime (1.5x)", h, 1.5, totalPay);
+    }
+
+    drawerBody.innerHTML = `
+        <div class="mb-4">
+            <div class="d-inline-block px-3 py-1 mb-3 rounded-pill" style="background: rgba(13, 110, 253, 0.15); border: 1px solid rgba(13, 110, 253, 0.3); color: #6ea8fe; font-size: 0.8rem; font-weight: 600;">
+                <i class="fas fa-calendar-alt me-1"></i> ${item.otDate}
+            </div>
+            <h4 class="fw-bold text-white mb-1" style="line-height: 1.3;">${item.taskDesc}</h4>
+            <p class="text-secondary small">Record Index #${index + 1}</p>
+        </div>
+
+        <div class="p-4 mb-4 rounded-4" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05);">
+            <h6 class="text-uppercase text-secondary fw-bold mb-3 border-bottom border-secondary border-opacity-25 pb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Calculation Breakdown</h6>
+            
+            ${breakdownHtml}
+            
+            <div class="d-flex justify-content-between align-items-center pt-3 mt-2 border-top border-secondary border-opacity-25">
+                <span class="fw-bold text-white">Total Payout</span>
+                <span class="fs-3 fw-bold text-success">RM ${totalPay.toFixed(2)}</span>
+            </div>
+        </div>
+
+        <div class="p-3 rounded-3 d-flex gap-3 align-items-start" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
+            <i class="fas fa-info-circle text-primary fs-5 mt-1"></i>
+            <div class="text-secondary" style="font-size: 0.8rem; line-height: 1.5;">
+                This calculation strictly follows the Malaysian Employment Act guidelines regarding split-rate thresholds for Rest Days and Public Holidays.
+            </div>
+        </div>
+    `;
+
+    const drawerEl = document.getElementById('taskDetailDrawer');
+    const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
+    offcanvas.show();
+};
+
+window.padamDraft = function(index) {
+    draftOTList.splice(index, 1);
+    renderDraftTable();
+    showPremiumToast("Draft task removed.", "warning");
+};
+
+function updateBreakdown() {
+    let total1_5 = 0, total2_0 = 0, total3_0 = 0;
+    let grandTotalPay = 0;
+    let hourlyRate = basicSalary > 0 ? (basicSalary / 26 / 8) : 0;
+
+    draftOTList.forEach(item => {
+        let h = item.hoursCount;
+        let r = item.rateFactor;
+
+        if (r === 1.5) {
+            total1_5 += h;
+            grandTotalPay += (h * 1.5 * hourlyRate);
+        } else if (r === 2.0) {
+            let jamPertama = Math.min(h, 8);
+            let jamBaki = Math.max(0, h - 8);
+            total1_5 += jamPertama;
+            total2_0 += jamBaki;
+            grandTotalPay += (jamPertama * 1.5 * hourlyRate) + (jamBaki * 2.0 * hourlyRate);
+        } else if (r === 3.0) {
+            let jamPertama = Math.min(h, 8);
+            let jamBaki = Math.max(0, h - 8);
+            total2_0 += jamPertama;
+            total3_0 += jamBaki;
+            grandTotalPay += (jamPertama * 2.0 * hourlyRate) + (jamBaki * 3.0 * hourlyRate);
+        }
+    });
+
+    const el15 = document.getElementById('breakdown-1-5');
+    const el20 = document.getElementById('breakdown-2-0');
+    const el30 = document.getElementById('breakdown-3-0');
+    const elGrand = document.getElementById('grand-total-val');
+    
+    if(el15) el15.innerText = `${total1_5.toFixed(1)}h`;
+    if(el20) el20.innerText = `${total2_0.toFixed(1)}h`;
+    if(el30) el30.innerText = `${total3_0.toFixed(1)}h`;
+    if(elGrand) elGrand.innerText = `RM ${grandTotalPay.toFixed(2)}`;
+}
+
 window.simpanKeCloud = async function() {
-    if (!currentUser) return;
-    if (localOTDraft.length === 0) {
-        tampilkanNotifikasi("Tiada rekod draf aktif untuk disimpan.", "error");
+    if (!currentUser) {
+        showPremiumToast("Authentication error. Please login again.", "error");
+        return;
+    }
+    
+    if (draftOTList.length === 0) {
+        showPremiumToast("Draft is empty! Please add tasks first.", "warning");
         return;
     }
 
-    const simpanBtn = document.querySelector('.accent-cloud-btn');
-    if (simpanBtn) {
-        simpanBtn.disabled = true;
-        simpanBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
-    }
+    const btn = document.querySelector('button[onclick="window.simpanKeCloud()"]');
+    if(!btn) return;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Committing...`;
+    btn.disabled = true;
 
     try {
-        // 1. Tarik rekod OT lama dari Cloud (supaya data lama tak tertindih)
-        const docRef = doc(db, "users_ot", currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        let activeRecords = [];
+        const userDocRef = doc(db, "users_ot", currentUser.uid);
         
-        if (docSnap.exists() && docSnap.data().activeRecords) {
-            activeRecords = docSnap.data().activeRecords;
-        }
+        const recordsToSave = draftOTList.map(item => ({
+            ...item,
+            recordId: `ot_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString()
+        }));
 
-        // 2. Format semula draf supaya NGAM dengan kehendak history.js & money-script.js
-        for (const item of localOTDraft) {
-            // Tukar tarikh dari YYYY-MM-DD ke DD/MM/YYYY (Sangat Penting untuk logik cut-off 15hb)
-            const tarikhSplit = item.tarikhKerja.split('-');
-            const tarikhFormatBaru = `${tarikhSplit[2]}/${tarikhSplit[1]}/${tarikhSplit[0]}`;
+        await updateDoc(userDocRef, {
+            activeRecords: arrayUnion(...recordsToSave)
+        });
 
-            activeRecords.push({
-                otDate: tarikhFormatBaru,
-                taskName: item.tugasan,
-                rateFactor: item.gandaanRate,
-                hoursCount: item.jumlahJam
-            });
-        }
-
-        // 3. Tembak/Simpan array yang dah digabungkan ke Cloud menggunakan setDoc
-        await setDoc(docRef, { 
-            activeRecords: activeRecords,
-            lastCommittedTime: serverTimestamp() 
-        }, { merge: true });
-
-        tampilkanNotifikasi("Semua rekod draf berjaya disinkronkan ke Cloud.", "success");
-        localOTDraft = []; 
-        binaSemulaJadualDraf();
+        draftOTList = [];
+        renderDraftTable();
+        showPremiumToast("Data successfully committed to Cloud!", "success");
 
     } catch (error) {
-        tampilkanNotifikasi("Sinkronisasi gagal: " + error.message, "error");
+        console.error("Cloud Commit Error: ", error);
+        showPremiumToast(`Failed to commit: ${error.message}`, "error");
     } finally {
-        if (simpanBtn) {
-            simpanBtn.disabled = false;
-            simpanBtn.innerHTML = `<i class="fas fa-cloud-upload-alt"></i> Save to Cloud`;
-        }
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 };
 
-/* =========================================================================
-   6. UTALITI PEMBANTU (SIDEBAR, CLOCK, THEME & LOGOUT)
-   ========================================================================= */
 window.logKeluarSistem = async function() {
     try { 
         await signOut(auth); 
-        window.location.href = "login.html"; 
+        window.location.replace("login.html"); 
     } catch (error) { 
-        console.error("Ralat ketika log keluar:", error); 
+        console.error(error); 
+        showPremiumToast("Logout failed.", "error");
     }
 };
 
-window.toggleSidebar = function() {
-    const sidebar = document.getElementById('sidebar-menu');
-    const overlay = document.getElementById('sidebar-overlay');
-    if (sidebar) sidebar.classList.toggle('active');
-    if (overlay) overlay.classList.toggle('active');
-};
-
-window.toggleTheme = function() {
-    const body = document.body;
-    const themeIcon = document.getElementById('theme-icon');
-    if (body.classList.contains('dark-theme')) {
-        body.classList.replace('dark-theme', 'light-theme');
-        if (themeIcon) themeIcon.classList.replace('fa-moon', 'fa-sun');
-    } else {
-        body.classList.replace('light-theme', 'dark-theme');
-        if (themeIcon) themeIcon.classList.replace('fa-sun', 'fa-moon');
+function initPremiumUI() {
+    const canvas = document.getElementById('bg-canvas');
+    if(canvas && typeof THREE !== 'undefined') {
+        const scene = new THREE.Scene(); 
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true }); 
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        const geom = new THREE.BufferGeometry(); 
+        const posArray = new Float32Array(500 * 3);
+        for(let i=0; i<500*3; i++) posArray[i] = (Math.random() - 0.5) * 10;
+        geom.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        
+        const mat = new THREE.PointsMaterial({ size: 0.005, color: 0x0d6efd }); 
+        const mesh = new THREE.Points(geom, mat); 
+        scene.add(mesh); 
+        camera.position.z = 3;
+        
+        function animate() { 
+            requestAnimationFrame(animate); 
+            mesh.rotation.y += 0.001; 
+            renderer.render(scene, camera); 
+        } 
+        animate();
     }
-};
-
-function processSystemClock() {
-    const clockEl = document.getElementById('current-time');
-    if (clockEl) {
-        const timestampSiri = new Date();
-        clockEl.innerText = timestampSiri.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    
+    if (typeof gsap !== 'undefined') {
+        gsap.to(".gsap-element", { y: 0, opacity: 1, duration: 0.8, stagger: 0.15, ease: "power3.out" });
     }
 }
 
-function tampilkanNotifikasi(mesej, jenis = "success") {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.style.padding = "12px 20px";
-    toast.style.borderRadius = "8px";
-    toast.style.fontSize = "14px";
-    toast.style.fontWeight = "500";
-    toast.style.color = "#ffffff";
-    toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-    toast.style.display = "flex";
-    toast.style.alignItems = "center";
-    toast.style.gap = "10px";
-    toast.style.transition = "all 0.3s ease";
-    toast.classList.add('animate-popup');
-
-    if (jenis === "success") {
-        toast.style.background = "#34c759";
-        toast.innerHTML = `<i class="fas fa-check-circle"></i> ${mesej}`;
-    } else if (jenis === "error") {
-        toast.style.background = "#ff3b30";
-        toast.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${mesej}`;
-    } else {
-        toast.style.background = "#007aff";
-        toast.innerHTML = `<i class="fas fa-info-circle"></i> ${mesej}`;
-    }
-
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = "0";
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
-}
-
-window.addEventListener('click', (event) => {
-    const aboutModal = document.getElementById('about-modal');
-    const otModal = document.getElementById('ot-modal');
-    if (event.target === aboutModal) aboutModal.style.display = 'none';
-    if (event.target === otModal) otModal.style.display = 'none';
-});
-
+// =========================================================================
+// LOGIK NATIVE BACK BUTTON (TUTUP DRAWER BILA SWIPE BACK)
+// =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    setInterval(processSystemClock, 1000);
-    processSystemClock();
+    initPremiumUI(); 
+    
+    const mobRateSelect = document.getElementById('mob-rate');
+    const deskRateSelect = document.getElementById('desk-rate');
+    const choicesOptions = { searchEnabled: false, itemSelectText: '', shouldSort: false };
+    
+    if (mobRateSelect && typeof Choices !== 'undefined') new Choices(mobRateSelect, choicesOptions);
+    if (deskRateSelect && typeof Choices !== 'undefined') new Choices(deskRateSelect, choicesOptions);
     
     const today = new Date().toISOString().split('T')[0];
-    if (document.getElementById('ot-date')) {
-        document.getElementById('ot-date').value = today;
+    if(document.getElementById('mob-date')) document.getElementById('mob-date').value = today;
+    if(document.getElementById('desk-date')) document.getElementById('desk-date').value = today;
+
+    // Event Listener untuk Drawer (Offcanvas)
+    const drawerEl = document.getElementById('taskDetailDrawer');
+    if(drawerEl) {
+        drawerEl.addEventListener('show.bs.offcanvas', () => {
+            // Push state ke browser history bila drawer dibuka
+            window.history.pushState({ offcanvasOpen: true }, "");
+        });
+        
+        drawerEl.addEventListener('hidden.bs.offcanvas', () => {
+            // Pastikan state dibuang dari history bila ditutup melalui butang 'X'
+            if (history.state && history.state.offcanvasOpen) {
+                window.history.back();
+            }
+        });
     }
+
+    // Tangkap bila user swipe back kat phone
+    window.addEventListener('popstate', (e) => {
+        const drawerEl = document.getElementById('taskDetailDrawer');
+        if (drawerEl && drawerEl.classList.contains('show')) {
+            const offcanvas = bootstrap.Offcanvas.getInstance(drawerEl);
+            if(offcanvas) {
+                offcanvas.hide(); // Tutup drawer bila tekan back fizikal/swipe
+            }
+        }
+    });
 });

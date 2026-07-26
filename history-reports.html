@@ -1,189 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- PWA & App Links -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Workspace Pro">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OT History & Reports</title>
-    <link rel="stylesheet" href="style.css?v=3.1.3">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght=300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Workspace Pro | History</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="dark-theme">
-    <div id="toast-container"></div>
+<body>
+    <!-- Canvas untuk Background Partikel -->
+    <canvas id="bg-canvas"></canvas>
     
-    <button onclick="window.toggleSidebar()" id="menu-trigger-btn" class="menu-hamburger-btn" aria-label="Open Menu">
-        <i class="fas fa-bars"></i>
-    </button>
-
-    <aside id="sidebar-menu" class="app-sidebar">
-        <div class="sidebar-header">
-            <button onclick="window.toggleSidebar()" class="sidebar-close-btn" aria-label="Close Menu">
-                <i class="fas fa-times"></i>
-            </button>
-            <h2>Menu</h2>
+    <nav class="navbar navbar-expand-lg glass-nav fixed-top py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-white" href="index.html"><i class="fas fa-terminal text-primary me-2"></i>Workspace Pro</a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><i class="fas fa-bars text-white"></i></button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto gap-3 align-items-lg-center mt-3 mt-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="index.html"><i class="fas fa-chart-pie me-1"></i> Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="money-management.html"><i class="fas fa-wallet me-1"></i> Money Mgmt</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="history-reports.html"><i class="fas fa-history me-1"></i> History</a></li>
+                    <li class="nav-item"><a class="nav-link" href="idea-board.html"><i class="fas fa-lightbulb me-1"></i> Ideas</a></li>
+                    <li class="nav-item"><a class="nav-link" href="profile-settings.html"><i class="fas fa-user-cog me-1"></i> Profile</a></li>
+                    <li class="nav-item mt-2 mt-lg-0"><button class="btn btn-outline-danger btn-sm fw-bold w-100" onclick="window.logKeluarSistem()">Logout</button></li>
+                </ul>
+            </div>
         </div>
-        <nav class="sidebar-nav">
-            <a href="index.html" class="nav-item">
-                <i class="fas fa-chart-pie"></i> OT Dashboard
-            </a>
-            <a href="profile-settings.html" class="nav-item">
-                <i class="fas fa-user-cog"></i> Profile Settings
-            </a>
-            <a href="history-reports.html" class="nav-item active">
-                <i class="fas fa-history"></i> History & Reports
-            </a>
-            <a href="money-management.html" class="nav-item">
-                <i class="fas fa-wallet"></i> Money Management
-            </a>
-            <a href="#" class="nav-item" onclick="event.preventDefault(); document.getElementById('about-modal').style.display='flex'; window.toggleSidebar();">
-                <i class="fas fa-info-circle"></i> About App
-            </a>
-        </nav>
-    </aside>
+    </nav>
 
-    <div id="sidebar-overlay" class="sidebar-backdrop" onclick="window.toggleSidebar()"></div>
-
-    <div class="system-toolbar">
-        <span id="current-time" class="time-display">00:00</span>
-        <button onclick="window.logKeluarSistem()" id="logout-btn" class="btn-text-danger">Log Out</button>
-        <button onclick="window.toggleTheme()" class="theme-btn" aria-label="Toggle Theme">
-            <i class="fas fa-moon" id="theme-icon"></i>
-        </button>
-    </div>
-
-    <div class="central-wrapper">
-        <main class="dashboard-layout" id="history-container">
-            
-            <section class="panel-card top-profile-bar" style="padding: 20px 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-                    <div>
-                        <h2 style="font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">History & Reports</h2>
-                        <p style="font-size: 14px; margin-top: 2px; color: var(--brand-blue); font-weight: 500;" id="history-greeting">Loading archive session...</p>
-                    </div>
-                    <div id="salary-indicator" style="font-size: 12px; background: rgba(0,122,255,0.1); color: var(--brand-blue); padding: 6px 12px; border-radius: 6px; font-weight: 500;">
-                        Hourly Rate: RM --.--/hour
-                    </div>
+    <div class="container" style="padding-top: 120px; padding-bottom: 50px;">
+        <div class="row mb-4 gsap-element align-items-center">
+            <div class="col-md-8">
+                <h1 class="fw-bold mb-1">History & Reports</h1>
+                <!-- Subtitle ditukar jadi lebih profesional, tak ada lagi "Welcome back" -->
+                <p class="text-secondary mb-0">Committed overtime records and payout analysis.</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <div id="salary-indicator" class="d-inline-block bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-3 fw-bold border border-primary border-opacity-25">Hourly Rate: RM --.--</div>
+            </div>
+        </div>
+        <div class="glass-panel p-4 mb-4 gsap-element">
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label text-secondary small fw-bold">Filter by Month</label><select id="filter-month" class="form-select bg-dark text-white border-secondary" onchange="window.tapisSejarahOT()"><option value="all">All Saved Records</option><option value="01">January</option><option value="02">February</option><option value="03">March</option><option value="04">April</option><option value="05">May</option><option value="06">June</option><option value="07">July</option><option value="08">August</option><option value="09">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></div>
+                <div class="col-md-8"><label class="form-label text-secondary small fw-bold">Search Task</label><input type="text" id="search-task" class="form-control bg-dark text-white border-secondary" placeholder="Type to search task..." oninput="window.tapisSejarahOT()"></div>
+            </div>
+        </div>
+        <div class="row g-4">
+            <div class="col-lg-8 gsap-element">
+                <div class="glass-panel p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-4"><h5 class="fw-bold mb-0"><i class="fas fa-archive text-primary me-2"></i>Committed OT Logs</h5><button onclick="window.eksportLaporan()" class="btn btn-success btn-sm fw-bold"><i class="fas fa-file-excel me-1"></i> Export Report</button></div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;"><table class="table table-glass align-middle"><thead><tr><th>No</th><th>Date</th><th>Task Assigned</th><th>Rate</th><th>Hours</th><th>Result Pay</th><th class="text-end">Act</th></tr></thead><tbody id="history-table-body"><tr><td colspan="7" class="text-center text-secondary py-4">Fetching logs from Cloud...</td></tr></tbody></table></div>
                 </div>
-            </section>
-
-            <section class="panel-card" style="margin-bottom: 24px; padding: 20px 24px;">
-                <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
-                    <div class="input-group-wrapper" style="flex: 1; min-width: 200px;">
-                        <label for="filter-month">Filter by Month</label>
-                        <div class="custom-select-element">
-                            <select id="filter-month" onchange="window.tapisSejarahOT()">
-                                <option value="all">All Saved Records</option>
-                                <option value="01">January</option>
-                                <option value="02">February</option>
-                                <option value="03">March</option>
-                                <option value="04">April</option>
-                                <option value="05">May</option>
-                                <option value="06">June</option>
-                                <option value="07">July</option>
-                                <option value="08">August</option>
-                                <option value="09">September</option>
-                                <option value="10">October</option>
-                                <option value="11">November</option>
-                                <option value="12">December</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="input-group-wrapper" style="flex: 2; min-width: 250px;">
-                        <label for="search-task">Search Task Description</label>
-                        <input type="text" id="search-task" placeholder="Type to search task..." oninput="window.tapisSejarahOT()">
-                    </div>
-                </div>
-            </section>
-
-            <div class="dashboard-grid" style="grid-template-columns: 1fr;">
-                <section class="panel-card list-summary-panel">
-                    <div class="card-title-area" style="margin-bottom: 16px;">
-                        <div class="icon-frame accent-blue"><i class="fas fa-history"></i></div>
-                        <div style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <h3>Committed OT Logs</h3>
-                                <p>Permanently archived records from cloud database</p>
-                            </div>
-                            <button onclick="window.eksportLaporan()" class="btn-secondary-action accent-cloud-btn" style="background: rgba(52,199,89,0.1); color: #34c759;">
-                                <i class="fas fa-file-excel"></i> Export Report
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="table-responsive-wrapper" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
-                        <table class="system-data-table visual-clean-table">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Date</th>
-                                    <th>Task Assigned</th>
-                                    <th>Rate</th>
-                                    <th>Hours</th>
-                                    <th>Result Pay</th>
-                                    <th style="text-align: right;">Action</th> 
-                                </tr>
-                            </thead>
-                            <tbody id="history-table-body">
-                                <tr>
-                                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px 0;">
-                                        Fetching logs from Cloud Firestore...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="breakdown-summary-box">
-                        <div class="breakdown-header">Report Breakdown Summary</div>
-                        
-                        <div class="breakdown-row">
-                            <span class="label">Total Accumulated Hours:</span>
-                            <span id="report-total-hours" class="value">0.0 hours</span>
-                        </div>
-                        <div class="breakdown-row">
-                            <span class="label">Total Archive Tasks Count:</span>
-                            <span id="report-total-tasks" class="value">0 entries</span>
-                        </div>
-                        
-                        <div class="panel-divider" style="margin: 14px 0 10px 0;"></div>
-                        
-                        <div class="grand-total-row">
-                            <span>Total Payout Amount:</span>
-                            <span id="report-grand-total">RM 0.00</span>
-                        </div>
-                    </div>
-                </section>
             </div>
-        </main>
-    </div>
-
-    <div id="custom-confirm-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; justify-content: center; align-items: center;">
-        <div class="panel-card" style="width: 90%; max-width: 400px; padding: 24px;">
-            <h3>Confirm Delete</h3>
-            <p id="confirm-modal-body" style="margin: 16px 0; color: var(--text-muted);"></p>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button id="confirm-cancel-btn" class="btn-secondary-action">Cancel</button>
-                <button id="confirm-proceed-btn" class="btn-text-danger" style="background: #ff3b30; color: white; padding: 8px 16px; border-radius: 6px;">Delete Permanently</button>
-            </div>
+            <div class="col-lg-4 gsap-element"><div class="glass-panel p-4 h-100 d-flex flex-column justify-content-center"><h6 class="text-uppercase text-secondary fw-bold mb-4">Report Breakdown</h6><div class="d-flex justify-content-between mb-3"><span class="text-secondary">Total Hours:</span> <strong id="report-total-hours">0.0h</strong></div><div class="d-flex justify-content-between mb-4"><span class="text-secondary">Task Count:</span> <strong id="report-total-tasks">0 entries</strong></div><hr class="border-secondary"><div class="d-flex justify-content-between align-items-center mt-3"><span class="fw-bold">Total Payout:</span> <h3 class="text-success fw-bold mb-0" id="report-grand-total">RM 0.00</h3></div></div></div>
         </div>
     </div>
 
-    <!-- MODAL ABOUT APP (SERAGAM PROFILE) -->
-    <div id="about-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 10005; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
-        <div class="panel-card animate-popup" style="width: 90%; max-width: 420px; padding: 28px; text-align: center; border: 1px solid rgba(255,255,255,0.08);">
-            <div style="width: 64px; height: 64px; background: rgba(0,122,255,0.15); color: var(--brand-blue); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; font-size: 26px;"><i class="fas fa-terminal"></i></div>
-            <h3 style="font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px;">Workspace Pro</h3>
-            <div style="font-size: 12px; background: rgba(255,255,255,0.06); color: var(--text-muted); display: inline-block; padding: 4px 10px; border-radius: 20px; font-weight: 600; margin-bottom: 20px;">Version 2.0</div>
-            <p style="font-size: 14px; line-height: 1.6; color: var(--text-muted); margin-bottom: 24px; padding: 0 8px;">This automation utility is meticulously designed and developed by <strong style="color: var(--text-primary);">Wan Mustaqim</strong> to process complex real-time OT data metrics and Malaysian Employment Act structural formulas.</p>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button onclick="window.open('')" class="btn-action-primary" style="background: #34c759; color: #ffffff; width: 100%; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(52,199,89,0.2);"><i class="fas fa-heart"></i> Support & Idea Donation</button>
-                <button onclick="document.getElementById('about-modal').style.display='none'" class="btn-secondary-action" style="width: 100%; font-weight: 500; justify-content: center;">Dismiss</button>
-            </div>
-        </div>
+    <!-- Confirm Modal -->
+    <div id="custom-confirm-modal" class="modal fade" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content glass-panel border-0"><div class="modal-body text-center p-4"><i class="fas fa-exclamation-triangle text-warning fs-1 mb-3"></i><h5 class="fw-bold">Confirm Delete</h5><p id="confirm-modal-body" class="text-secondary my-3"></p><div class="d-flex justify-content-center gap-3"><button id="confirm-cancel-btn" class="btn btn-secondary px-4">Cancel</button><button id="confirm-proceed-btn" class="btn btn-danger px-4">Delete Permanently</button></div></div></div></div></div>
+
+    <!-- MOBILE BOTTOM NAVIGATION -->
+    <div class="mobile-bottom-nav d-lg-none">
+        <a href="index.html" class="nav-item-mobile"><i class="fas fa-home"></i><span>Home</span></a>
+        <a href="money-management.html" class="nav-item-mobile"><i class="fas fa-wallet"></i><span>Wallet</span></a>
+        <a href="idea-board.html" class="nav-item-center-wrapper"><div class="nav-item-center"><i class="fas fa-lightbulb"></i></div></a>
+        <a href="history-reports.html" class="nav-item-mobile active"><i class="fas fa-file-invoice-dollar"></i><span>Activity</span></a>
+        <a href="profile-settings.html" class="nav-item-mobile"><i class="fas fa-user-circle"></i><span>Profile</span></a>
     </div>
 
-    <script type="module" src="history.js?v=3.1.3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script type="module" src="history.js"></script>
+    <script src="anti-cache.js"></script>
 </body>
 </html>

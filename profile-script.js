@@ -1,195 +1,125 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signOut, onAuthStateChanged, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAYQ9UKq6teDdfleoCfG_-kjiIf6Gj0DNc", 
-  authDomain: "ot-tracker-pro-64415.firebaseapp.com",
-  projectId: "ot-tracker-pro-64415",
-  storageBucket: "ot-tracker-pro-64415.firebasestorage.app",
-  messagingSenderId: "941888808954",
-  appId: "1:941888808954:web:e40f19a0cec8a2f4272643"
+const firebaseConfig = { 
+    apiKey: "AIzaSyAYQ9UKq6teDdfleoCfG_-kjiIf6Gj0DNc", 
+    authDomain: "ot-tracker-pro-64415.firebaseapp.com", 
+    projectId: "ot-tracker-pro-64415", 
+    storageBucket: "ot-tracker-pro-64415.firebasestorage.app", 
+    messagingSenderId: "941888808954", 
+    appId: "1:941888808954:web:e40f19a0cec8a2f4272643" 
 };
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 let currentUser = null;
 
-/* =========================================================================
-   1. UI SIDEBAR CONTROL
-   ========================================================================= */
-window.toggleSidebar = function() {
-    const sidebar = document.getElementById('sidebar-menu');
-    const overlay = document.getElementById('sidebar-overlay');
-    if (sidebar) sidebar.classList.toggle('active');
-    if (overlay) overlay.classList.toggle('active');
-};
-
-/* =========================================================================
-   2. SYSTEM THEME CONTROLLER
-   ========================================================================= */
-window.toggleTheme = function() {
-    const body = document.body;
-    const themeIcon = document.getElementById('theme-icon');
-    if (body.classList.contains('dark-theme')) {
-        body.classList.replace('dark-theme', 'light-theme');
-        if (themeIcon) themeIcon.classList.replace('fa-moon', 'fa-sun');
-    } else {
-        body.classList.replace('light-theme', 'dark-theme');
-        if (themeIcon) themeIcon.classList.replace('fa-sun', 'fa-moon');
+// PREMIUM UI ENGINE - Dioptimumkan supaya tidak mengganggu Main Thread
+function initPremiumUI() {
+    const canvas = document.getElementById('bg-canvas');
+    if(canvas && typeof THREE !== 'undefined') {
+        const scene = new THREE.Scene(); 
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: false }); // antialias: false lebih ringan
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        const geom = new THREE.BufferGeometry(); 
+        const posArray = new Float32Array(500 * 3);
+        for(let i=0; i<500*3; i++) posArray[i] = (Math.random() - 0.5) * 10;
+        geom.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        
+        const mat = new THREE.PointsMaterial({ size: 0.005, color: 0x0d6efd }); 
+        const mesh = new THREE.Points(geom, mat); 
+        scene.add(mesh); 
+        camera.position.z = 3;
+        
+        function animate() { 
+            requestAnimationFrame(animate); 
+            mesh.rotation.y += 0.0005; // Lebih perlahan untuk penjimatan CPU
+            renderer.render(scene, camera); 
+        } 
+        animate();
     }
-};
+}
 
-/* =========================================================================
-   3. SYSTEM LOGOUT METHOD
-   ========================================================================= */
-window.logKeluarSistem = async function() {
-    try { 
-        await signOut(auth); 
-        window.location.href = "index.html"; 
-    } catch (error) { 
-        console.error(error); 
+// FUNGSI ANIMASI GSAP YANG SMOOTH
+function jalankanAnimasiMasuk() {
+    if (typeof gsap !== 'undefined') {
+        // Gunakan set supaya elemen ada awal-awal lagi untuk elak flash
+        gsap.set(".gsap-element", { opacity: 0, y: 30 });
+        
+        // Delay sikit (0.3s) supaya browser selesaikan load Three.js dulu
+        gsap.to(".gsap-element", { 
+            opacity: 1, 
+            y: 0, 
+            duration: 0.8, 
+            delay: 0.3,
+            ease: "power2.out" 
+        });
     }
-};
+}
 
-/* =========================================================================
-   4. CLOUD SYNCHRONIZATION (SAVE PROFILE)
-   ========================================================================= */
+// KEMASKINI PROFIL
 window.kemaskiniProfilCloud = async function(event) {
-    if (event) event.preventDefault();
+    if (event) event.preventDefault(); 
     if (!currentUser) return;
-
+    
     const nameVal = document.getElementById('profile-name').value;
     const nickNameVal = document.getElementById('profile-nickname').value;
     const salaryVal = parseFloat(document.getElementById('profile-salary').value) || 2500;
     const staffIdVal = document.getElementById('profile-staff-id').value;
-
     const submitBtn = document.querySelector('#profile-settings-form button[type="submit"]');
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
-    }
-
+    
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i> Saving...`; }
+    
     try {
-        await setDoc(doc(db, "users_ot", currentUser.uid), {
-            employeeName: nameVal,
-            nickName: nickNameVal, 
-            basicSalaryProfile: salaryVal,
-            staffId: staffIdVal
+        await setDoc(doc(db, "users_ot", currentUser.uid), { 
+            employeeName: nameVal, nickName: nickNameVal, nicknameProfile: nickNameVal, basicSalaryProfile: salaryVal, staffId: staffIdVal 
         }, { merge: true });
-
-        alert("Profile update synchronized successfully.");
-    } catch (error) {
-        alert("Failed to update profile configurations: " + error.message);
-    } finally {
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = `<i class="fas fa-save" style="margin-right: 8px;"></i> Save Modifications`;
-        }
-    }
+        alert("Profile updated.");
+    } catch (error) { alert("Failed: " + error.message); } 
+    finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save Modifications`; } }
 };
 
-function processSystemClock() {
-    const clockEl = document.getElementById('current-time');
-    if (clockEl) {
-        const timestampSiri = new Date();
-        clockEl.innerText = timestampSiri.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    }
-}
+// TUKAR EMAIL
+window.tukarEmailAkaun = async function(event) {
+    event.preventDefault();
+    if (!currentUser) return;
+    const newEmail = document.getElementById('profile-new-email').value;
+    try {
+        await verifyBeforeUpdateEmail(currentUser, newEmail);
+        alert("Check your new email to confirm.");
+        await signOut(auth);
+        window.location.replace("login.html");
+    } catch (error) { alert(error.message); }
+};
 
-/* =========================================================================
-   5. REAL-TIME SECURITY WATCHER & PAGE WRAPPER CONTROL (Satu Fungsi Bersepadu)
-   ========================================================================= */
+// PENGESAHAN LOGIN
 onAuthStateChanged(auth, async (user) => {
-    const pageLoader = document.getElementById('page-loader');
-    const mainUi = document.getElementById('main-ui');
-
     if (user) {
         currentUser = user;
+        if (document.getElementById('profile-email-display')) document.getElementById('profile-email-display').value = user.email;
         
-        // Map emel pengguna ke input element
-        if (document.getElementById('profile-email-display')) {
-            document.getElementById('profile-email-display').value = user.email;
-        }
-
         try {
-            // Tarik maklumat dari Firestore
-            const docRef = doc(db, "users_ot", user.uid);
-            const docSnap = await getDoc(docRef);
-            
+            const docSnap = await getDoc(doc(db, "users_ot", user.uid));
             if (docSnap.exists()) {
                 const cloudData = docSnap.data();
                 if (document.getElementById('profile-name')) document.getElementById('profile-name').value = cloudData.employeeName || "";
-                if (document.getElementById('profile-nickname')) document.getElementById('profile-nickname').value = cloudData.nickName || "";
+                if (document.getElementById('profile-nickname')) document.getElementById('profile-nickname').value = cloudData.nicknameProfile || cloudData.nickName || "";
                 if (document.getElementById('profile-salary')) document.getElementById('profile-salary').value = cloudData.basicSalaryProfile || "2500";
                 if (document.getElementById('profile-staff-id')) document.getElementById('profile-staff-id').value = cloudData.staffId || "";
             }
-        } catch (error) { 
-            console.error("Ralat memuatkan profil:", error); 
-        }
-
-        // SELESAI SEMUA PROSES: Matikan skrin loading dan paparkan keseluruhan UI
-        if (pageLoader) pageLoader.style.display = 'none';
-        if (mainUi) mainUi.style.display = 'block';
-
-        // Pastikan navigasi sistem dipaparkan dengan betul
-        if (document.getElementById('logout-btn')) document.getElementById('logout-btn').style.display = 'inline-block';
-        if (document.getElementById('menu-trigger-btn')) document.getElementById('menu-trigger-btn').style.display = 'flex';
-
-    } else {
-        currentUser = null;
-        window.location.href = "index.html";
-    }
+        } catch (error) { console.error(error); }
+        
+        // Panggil animasi di sini selepas data load
+        jalankanAnimasiMasuk();
+    } else { window.location.href = "login.html"; }
 });
 
-/* =========================================================================
-   6. GLOBAL WINDOW EVENTS (MODAL & DOM LISTENER)
-   ========================================================================= */
-// Klik di luar kawasan 'About Modal' untuk menutup panel secara automatik
-window.addEventListener('click', (event) => {
-    const aboutModal = document.getElementById('about-modal');
-    if (event.target === aboutModal) {
-        aboutModal.style.display = 'none';
-    }
-});
+window.logKeluarSistem = async function() { await signOut(auth); window.location.href = "login.html"; };
 
 document.addEventListener('DOMContentLoaded', () => {
-    setInterval(processSystemClock, 1000);
-    processSystemClock();
-    
-    const profileForm = document.getElementById('profile-settings-form');
-    if (profileForm) {
-        profileForm.addEventListener('submit', window.kemaskiniProfilCloud);
-    }
+    initPremiumUI();
 });
-
-/* =========================================================================
-   6. SISTEM AUTO LOGOUT JIKA TIDAK AKTIF (IDLE TIMEOUT - 30 MINIT)
-   ========================================================================= */
-let idleTimer;
-const TEMPOH_IDLE = 30 * 60 * 1000; // 30 minit dalam milisaat (ms)
-
-function setSemulaTimerIdle() {
-    // Bersihkan timer lama jika pengguna melakukan aktiviti
-    clearTimeout(idleTimer);
-    
-    // Set timer baharu untuk log keluar jika tiada aktiviti dalam masa 30 minit
-    idleTimer = setTimeout(async () => {
-        if (currentUser) {
-            tampilkanNotifikasi("Sesi anda telah tamat kerana tidak aktif selama 30 minit.", "error");
-            
-            // Beri ruang 1.5 saat untuk pengguna sempat membaca notifikasi sebelum log keluar
-            setTimeout(async () => {
-                try {
-                    await signOut(auth);
-                    window.location.href = "index.html";
-                } catch (error) {
-                    console.error("Ralat log keluar automatik:", error);
-                }
-            }, 1500);
-        }
-    }, TEMPOH_IDLE);
-}
-
